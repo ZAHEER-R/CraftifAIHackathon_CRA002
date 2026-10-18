@@ -1,0 +1,347 @@
+==============================================================================
+            SENTINELEDGE - SMART TRAFFIC ANALYTICS
+                      PROJECT REPORT
+==============================================================================
+
+Team            : ZexTech team - 6e656f84
+Author          : Zaheer Rachakula
+Institution     : Vellore Institute of Technology (VIT), Vellore
+Event           : CraftifAI Physical AI Hackathon
+Track           : Track A (Perception)
+Problem Chosen  : 4. Traffic and Crosswalk Analytics (PipeGen)
+                  "Cities lack live counts of pedestrians, cyclists and
+                  cars at crossings."
+                  Our solution: live per-class UP/DOWN vehicle counts
+
+------------------------------------------------------------------------------
+LINKS
+------------------------------------------------------------------------------
+GitHub source code : https://github.com/ZAHEER-R/SentinelEdge
+Live deployed demo : https://zaheer-traffic-analyzer.streamlit.app/
+Project files (Drive): https://drive.google.com/drive/folders/1j3363q5c5upAvIQRAR2wT30OcZCTB1az?usp=sharing
+PipeGen downloads  : https://developer.craftifai.com/dashboard?tab=downloads
+Project form       : https://forms.gle/eJyeCKCG2UH757QZ8
+
+
+==============================================================================
+1. PROJECT OVERVIEW
+==============================================================================
+SentinelEdge is a traffic analytics system that follows the Physical AI
+cycle: SEE -> DECIDE -> ACT.
+
+It turns a video file, webcam, or CCTV/RTSP stream into:
+  1. Detection : finds cars, trucks, buses, motorcycles and bicycles
+  2. Tracking  : keeps a stable ID on each vehicle across frames
+  3. Counting  : when a vehicle crosses a virtual line, it is counted as
+                 UP or DOWN, separately for each vehicle class
+  4. Output    : annotated video, JSON counts, MQTT messages, and a web
+                 dashboard with Excel export
+
+SEE     = YOLOv8 detection + ByteTrack tracking
+DECIDE  = line-crossing counter (UP / DOWN per class)
+ACT     = actionable outputs (JSON + MQTT topic "traffic/counts") that a
+          FirmGen board or other system can use for closed-loop action.
+
+
+==============================================================================
+2. PROBLEM STATEMENT
+==============================================================================
+Official problem (Problem 4, PipeGen): Traffic and Crosswalk Analytics -
+"Cities lack live counts of pedestrians, cyclists and cars at crossings."
+
+Current scope of SentinelEdge: cars, trucks, buses, motorcycles and
+bicycles, counted by direction (UP / DOWN). Pedestrian counting is planned
+as future work (see Section 12).
+
+Cities and roads often have cameras, but they usually only show video.
+They do not automatically count vehicles by type and direction in real
+time. Manual counting is slow and error-prone. Without structured counts
+it is hard to:
+  - Measure congestion by direction
+  - Plan signals or lanes
+  - Trigger alerts or physical actions (lights, barriers, logs)
+
+
+==============================================================================
+3. SYSTEM ARCHITECTURE / PIPELINE FLOW
+==============================================================================
+
+  Input (video file / webcam / RTSP)
+          |
+          v
+  YOLOv8 detector     -> boxes, class, confidence
+          |
+          v
+  ByteTrack           -> links boxes across frames, stable track IDs
+          |
+          v
+  Line counter        -> centroid crosses horizontal line? UP or DOWN
+          |
+          +----------+-----------+-----------+
+          v          v           v           v
+   Annotated      JSON counts   MQTT topic   Streamlit UI
+   frame/video    (per class)   traffic/     + Excel export
+                                counts
+
+Counting rule:
+  - A blue horizontal line is drawn across the frame (default about 55%
+    down from the top).
+  - Each tracked vehicle has a centroid (center of its bounding box).
+  - Centroid moves from above the line to below -> counted DOWN.
+  - Centroid moves from below the line to above -> counted UP.
+  - Each track ID is counted only once (no double counting).
+
+On-screen output:
+  - Green bounding boxes
+  - Class name + track ID (for example: car ID:12)
+  - Blue counting line
+  - Top-left count panel (UP Cars, DOWN Cars, UP Trucks, DOWN Trucks ...)
+
+
+==============================================================================
+4. TECHNOLOGY STACK
+==============================================================================
+Detection     : Ultralytics YOLOv8 (yolov8n.pt)
+Tracking      : ByteTrack (through model.track)
+Vision I/O    : OpenCV (read streams, draw overlays, write MP4)
+Counting      : src/counter.py (line-crossing UP/DOWN logic)
+Visualization : src/visualizer.py (boxes, line, count panel)
+Messaging     : paho-mqtt (publishes to traffic/counts)
+Dashboard     : Streamlit (app.py) with Excel export
+Configuration : PyYAML (config.yaml)
+Edge target   : CraftifAI PipeGen -> TensorRT -> DeepStream
+                (NVIDIA GPU / Jetson production path)
+
+Python packages (requirements.txt):
+  ultralytics>=8.3.0, opencv-python-headless>=4.8.0, numpy>=1.24.0,
+  torch>=2.0.0, torchvision>=0.15.0, PyYAML>=6.0, tqdm>=4.65.0,
+  paho-mqtt>=2.0.0, streamlit>=1.40,<2, openpyxl>=3.1.0, lap>=0.5.12
+
+
+==============================================================================
+5. TWO DEPLOYMENT PATHS
+==============================================================================
+Path 1 - CPU / Dashboard path (COMPLETED)
+  Python + YOLOv8 + Streamlit. Works on any PC. Used for demo and
+  development. Deployed publicly.
+
+Path 2 - PipeGen / GPU path (PENDING - hardware limitation)
+  CraftifAI PipeGen -> TensorRT -> DeepStream on NVIDIA GPU / Jetson.
+  This is the official Track A edge deployment route. It could not be run
+  because the author's laptop does not meet the GPU prerequisites (see
+  Section 9).
+
+
+==============================================================================
+6. STEP-BY-STEP PROCESS FOLLOWED TO BUILD THE PROJECT
+==============================================================================
+
+STEP 1 - Problem selection
+  - Reviewed the hackathon problems and chose "Traffic and Crosswalk
+    Analytics" under Track A (Perception).
+  - Defined the goal: live per-class UP/DOWN vehicle counts.
+
+STEP 2 - Environment setup
+  - Created a Python virtual environment (python -m venv venv).
+  - Activated it (Windows PowerShell: .\venv\Scripts\Activate.ps1;
+    WSL/Linux: source venv/bin/activate).
+  - Installed dependencies with: pip install -r requirements.txt
+  - Python 3.10+ (3.11 recommended); about 2 GB disk for model download.
+
+STEP 3 - Reference pipeline built
+  - Detection: YOLOv8 (yolov8n.pt) to find vehicle classes.
+  - Tracking: ByteTrack via model.track for stable IDs across frames.
+  - Counting: custom line counter in src/counter.py.
+  - Overlays: OpenCV drawing in src/visualizer.py (boxes, labels, line,
+    count panel).
+
+STEP 4 - Input handling (main.py CLI)
+  - Supported three input modes: video file, device webcam, RTSP URL.
+  - Interactive menu plus non-interactive flags, for example:
+      python main.py --mode video  --source "traffic.mp4"
+      python main.py --mode webcam --source 0
+      python main.py --mode rtsp   --source "rtsp://host:554/live"
+  - Press "q" to stop the display window.
+
+STEP 5 - Actionable outputs added
+  - Annotated MP4 saved to output/ (annotated_*.mp4)
+  - JSON counts saved to output/ (counts_*.json) with UP/DOWN per class
+  - MQTT publisher (src/mqtt_publisher.py) sending counts to the topic
+    traffic/counts, for later closed-loop use with a FirmGen board
+
+STEP 6 - Configuration layer
+  - Moved tunable values to config.yaml:
+      model (name, confidence, device), classes.vehicle, counting
+      (line_position 0-1), display (colors, thickness), output
+      (save_annotated, mqtt_topic)
+
+STEP 7 - Streamlit intelligence dashboard
+  - Built app.py: upload/process traffic video, view counts, export
+    results to Excel (openpyxl).
+  - Tested locally with: streamlit run app.py
+
+STEP 8 - Deployment
+  - Pushed the project to GitHub.
+  - Deployed the dashboard on Streamlit Community Cloud:
+    https://zaheer-traffic-analyzer.streamlit.app/
+
+STEP 9 - PipeGen requirement prepared
+  - Wrote a complete PipeGen requirement description in
+    PIPEGEN_REQUIREMENT.md so the same pipeline can be compiled to
+    TensorRT / DeepStream on a GPU machine.
+
+STEP 10 - Documentation
+  - Wrote README.md, PROJECT_DESCRIPTION.md, SUBMISSION_CHECKLIST.md and
+    VERIFICATION_STATUS.md.
+  - Documented setup for Windows PowerShell, WSL (Ubuntu) and PipeGen.
+
+STEP 11 - Version control
+  - Commands used:
+      git init
+      git add .
+      git branch -M main
+      git commit -m "SentinelEdge: traffic analytics, dashboard, docs"
+      git remote add origin https://github.com/ZAHEER-R/SentinelEdge.git
+      git push -u origin main
+
+STEP 12 - Submission and feedback
+  - Submitted the project with the GitHub URL and live demo URL.
+  - Filled the FirmGen/PipeGen feedback forms, including the PipeGen
+    compatibility screenshot as evidence of the hardware limitation.
+
+
+==============================================================================
+7. REPOSITORY LAYOUT
+==============================================================================
+SentinelEdge/
+  README.md
+  PROJECT_DESCRIPTION.md
+  PIPEGEN_REQUIREMENT.md     (paste into PipeGen Requirement stage)
+  SUBMISSION_CHECKLIST.md
+  VERIFICATION_STATUS.md
+  requirements.txt
+  config.yaml
+  main.py                    (CLI pipeline)
+  app.py                     (Streamlit dashboard)
+  src/
+    counter.py
+    visualizer.py
+    mqtt_publisher.py
+  evidence/                  (IR + TensorRT screenshots - to add)
+  pipegen_export/            (PipeGen export - to add)
+  output/
+  docs/
+
+
+==============================================================================
+8. PROJECT STATUS
+==============================================================================
+Vehicle detection (YOLOv8)                 : Completed
+Multi-object tracking (ByteTrack)          : Completed
+Directional UP / DOWN line counting        : Completed
+Annotated video + JSON counts              : Completed
+MQTT counts publisher                      : Completed
+Streamlit intelligence dashboard           : Completed and deployed
+Excel export                               : Completed
+Live public demo                           : Completed
+PipeGen requirement text                   : Ready
+PipeGen TensorRT + DeepStream export       : Pending (needs NVIDIA GPU)
+Pipeline IR + TensorRT evidence            : Pending (after GPU run)
+
+
+==============================================================================
+9. PIPEGEN / GPU PATH - REQUIREMENTS AND CURRENT LIMITATION
+==============================================================================
+Requirements for the official Track A GPU path:
+  - NVIDIA GPU with driver 560.35 or higher
+  - Docker (PipeGen runs inside a DeepStream container)
+  - NVIDIA Container Toolkit
+  - socat (required by the launcher)
+  - User added to the docker group
+  - Graphical session for live display
+  - About 50 GB free disk (x86_64)
+  - Linux x86_64, Jetson (JetPack 6+), or WSL2 with GPU
+
+Limitation: The author's laptop did not meet these requirements (a
+compatibility screenshot has been submitted). Because of this, the
+PipeGen / TensorRT / DeepStream step was delayed rather than skipped.
+A complete, working CPU-based solution was built and deployed instead.
+
+Planned steps once a compatible machine is available:
+  1. Verify driver:   nvidia-smi
+  2. Install Docker, NVIDIA Container Toolkit, socat; add user to docker
+     group.
+  3. Install PipeGen v0.5.x and verify with: pipegen --version
+  4. Create a new PipeGen project and paste PIPEGEN_REQUIREMENT.md into
+     the Requirement stage.
+  5. Complete the five stages: Requirement -> Pipeline IR -> Model
+     (TensorRT FP16/INT8) -> Compiler -> Run.
+  6. Export the project into pipegen_export/ and add screenshots
+     evidence/pipeline_ir.png and evidence/tensorrt_speed_report.png.
+  7. Commit and push to GitHub.
+
+
+==============================================================================
+10. HOW TO RUN
+==============================================================================
+Live demo (no install):
+  https://zaheer-traffic-analyzer.streamlit.app/
+
+Local (Windows PowerShell):
+  cd SentinelEdge-main
+  python -m venv venv
+  .\venv\Scripts\Activate.ps1
+  pip install -r requirements.txt
+  python main.py            (CLI)
+  streamlit run app.py      (dashboard)
+
+Local (WSL / Linux):
+  python3 -m venv venv
+  source venv/bin/activate
+  pip install -r requirements.txt
+  python main.py
+  streamlit run app.py
+
+
+==============================================================================
+11. CHALLENGES FACED
+==============================================================================
+  - GPU prerequisites for PipeGen (driver >= 560.35, Docker + NVIDIA
+    Container Toolkit, socat, about 50 GB disk, graphical session) were
+    difficult to meet on a student laptop / WSL2 setup.
+  - Compatibility with the hardware was only clear after beginning setup.
+  - Solution: built and deployed a full CPU-path system so the perception
+    and counting logic could still be demonstrated end to end.
+
+
+==============================================================================
+12. FUTURE WORK
+==============================================================================
+  - Run PipeGen on a compatible NVIDIA GPU machine; produce TensorRT and
+    DeepStream export, Pipeline IR and TensorRT speed-report evidence.
+  - Connect the MQTT output (traffic/counts) to a FirmGen board for a
+    closed-loop physical action when count thresholds are reached.
+  - Add pedestrian detection and counting to fully match the official
+    problem (pedestrians, cyclists and cars at crossings).
+  - Extend to crosswalk analytics and multiple counting lines.
+
+
+==============================================================================
+13. CONCLUSION
+==============================================================================
+SentinelEdge delivers the SEE and DECIDE stages of Physical AI (vehicle
+detection, tracking and directional per-class counting) and exposes
+ACT-ready outputs (JSON and MQTT). The CPU path is complete, deployed and
+publicly accessible. The GPU/PipeGen path is prepared and will be
+completed on compatible hardware.
+
+Thanks to the Devnovate team, the Microsoft team and Rakesh sir for the
+opportunity.
+
+------------------------------------------------------------------------------
+Team   : ZexTech team - 6e656f84
+Author : Zaheer Rachakula, Integrated M.Tech (CSE), VIT Vellore
+GitHub : https://github.com/ZAHEER-R/SentinelEdge
+Demo   : https://zaheer-traffic-analyzer.streamlit.app/
+Files  : https://drive.google.com/drive/folders/1j3363q5c5upAvIQRAR2wT30OcZCTB1az?usp=sharing
+==============================================================================

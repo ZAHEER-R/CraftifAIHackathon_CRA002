@@ -1,0 +1,23 @@
+{
+  "timestamp_utc": "2026-10-18T10:06:56.538382+00:00",
+  "source": "/mount/src/sentineledge/output/input_upload_1792317974.mp4",
+  "total_frames": 391,
+  "elapsed_seconds": 37.284,
+  "counts": {
+    "UP": {
+      "car": 1,
+      "truck": 0,
+      "bus": 0,
+      "motorcycle": 6,
+      "bicycle": 0
+    },
+    "DOWN": {
+      "car": 0,
+      "truck": 0,
+      "bus": 0,
+      "motorcycle": 2,
+      "bicycle": 0
+    },
+    "total_crossings": 9
+  }
+}
