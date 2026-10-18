@@ -10,12 +10,56 @@ from datetime import date, datetime, time as dt_time
 from pathlib import Path
 from urllib.parse import urlsplit
 
+import imageio_ffmpeg
 import streamlit as st
 
 ROOT = Path(__file__).resolve().parent
 OUTPUT = ROOT / "output"
 CONFIG = ROOT / "config.yaml"
 OUTPUT.mkdir(parents=True, exist_ok=True)
+
+def browser_video_path(source: Path) -> Path:
+    """Return an H.264 MP4 suitable for browser playback."""
+    source = Path(source)
+    cache_dir = OUTPUT / ".browser_cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    target = cache_dir / f"{source.stem}_h264.mp4"
+
+    if (
+        target.is_file()
+        and target.stat().st_size > 0
+        and target.stat().st_mtime >= source.stat().st_mtime
+    ):
+        return target
+
+    command = [
+        imageio_ffmpeg.get_ffmpeg_exe(),
+        "-y", "-i", str(source),
+        "-map", "0:v:0",
+        "-c:v", "libx264",
+        "-preset", "fast",
+        "-crf", "23",
+        "-pix_fmt", "yuv420p",
+        "-movflags", "+faststart",
+        "-an",
+        str(target),
+    ]
+
+    import subprocess
+    result = subprocess.run(
+        command,
+        capture_output=True,
+        text=True,
+        timeout=600,
+    )
+
+    if result.returncode != 0 or not target.is_file() or target.stat().st_size == 0:
+        target.unlink(missing_ok=True)
+        detail = (result.stderr or "FFmpeg produced no output.")[-2500:]
+        raise RuntimeError(detail)
+
+    return target
+
 
 st.set_page_config(
     page_title="Traffic Analytics | Intelligence Dashboard",
@@ -1057,15 +1101,19 @@ elif page == "New Analysis":
             if candidates:
                 annotated = candidates[0]
                 st.markdown("### Annotated video")
-                st.video(str(annotated))
-                with open(annotated, "rb") as video_handle:
-                    st.download_button(
-                        "⬇ Download annotated video",
-                        data=video_handle.read(),
-                        file_name=annotated.name,
-                        mime="video/mp4",
-                        use_container_width=True,
-                    )
+                try:
+                    playable_video = browser_video_path(annotated)
+                    st.video(str(playable_video))
+                    with open(playable_video, "rb") as video_handle:
+                        st.download_button(
+                            "⬇ Download annotated video",
+                            data=video_handle.read(),
+                            file_name=playable_video.name,
+                            mime="video/mp4",
+                            use_container_width=True,
+                        )
+                except Exception as exc:
+                    st.error(f"Could not prepare browser-compatible video: {exc}")
 
 
 # --------------------------- Report history ---------------------------
@@ -1155,15 +1203,19 @@ elif page == "Reports History":
             if matching_video:
                 selected_video = matching_video[0]
                 st.markdown("### Annotated video")
-                st.video(str(selected_video))
-                with open(selected_video, "rb") as handle:
-                    st.download_button(
-                        "Download annotated video",
-                        data=handle.read(),
-                        file_name=selected_video.name,
-                        mime="video/mp4",
-                        use_container_width=True,
-                    )
+                try:
+                    playable_video = browser_video_path(selected_video)
+                    st.video(str(playable_video))
+                    with open(playable_video, "rb") as handle:
+                        st.download_button(
+                            "Download annotated video",
+                            data=handle.read(),
+                            file_name=playable_video.name,
+                            mime="video/mp4",
+                            use_container_width=True,
+                        )
+                except Exception as exc:
+                    st.error(f"Could not prepare browser-compatible video: {exc}")
 
 
 # --------------------------- Settings ---------------------------
