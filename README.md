@@ -23,6 +23,18 @@
 ### Image 4
 ![Preview 4](deliverables/4.png)
 
+### Image 5
+![Preview 5](deliverables/TestCase/5.png)
+
+### Image 6
+![Preview 6](deliverables/TestCase/6.png)
+
+### Image 7
+![Preview 7](deliverables/TestCase/7.png)
+
+### Image 8
+![Preview 8](deliverables/TestCase/8.png)
+
 ---
 
 ## Table of contents
