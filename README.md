@@ -12,7 +12,7 @@
 ## Preview
 
 ### Image 1
-![Preview 1](1.png)
+![Preview 1](.deliverables/1.png)
 
 ### Image 2
 ![Preview 2](2.png)
