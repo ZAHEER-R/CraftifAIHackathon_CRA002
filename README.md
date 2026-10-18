@@ -464,7 +464,7 @@ Edit `config.yaml`:
 
 In the form, include:
 
-- GitHub repository URL
+- GitHub repository URL: https://github.com/ZAHEER-R/CraftifAIHackathon_CRA002
 - Live demo URL: https://zaheer-traffic-analyzer.streamlit.app/
 
 ---
