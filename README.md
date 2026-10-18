@@ -12,16 +12,16 @@
 ## Preview
 
 ### Image 1
-![Preview 1](.deliverables/1.png)
+![Preview 1](deliverables/1.png)
 
 ### Image 2
-![Preview 2](2.png)
+![Preview 2](deliverables/2.png)
 
 ### Image 3
-![Preview 3](3.png)
+![Preview 3](deliverables/3.png)
 
 ### Image 4
-![Preview 4](4.png)
+![Preview 4](deliverables/4.png)
 
 ---
 
